@@ -13,23 +13,23 @@ tags:
 
 # Sepsis OpenEnv
 
-`Sepsis OpenEnv` is a real-world sequential sepsis management environment built for the OpenEnv hackathon workflow. It exposes a standard agent loop through `reset()`, `step()`, and `state()` and evaluates how well an agent gathers information, chooses treatment, and manages a logged ICU trajectory under partial observability.
+Sepsis OpenEnv is a real-world sequential sepsis management environment for the OpenEnv hackathon workflow. It exposes a standard `reset()` / `step()` / `state()` loop and evaluates how well an agent gathers information, chooses treatment, and manages a logged ICU trajectory under partial observability.
 
-It is designed to satisfy the Round 1 submission requirements:
+The environment is designed to satisfy the Round 1 requirements:
 
 - real-world task: ICU sepsis workup and treatment decisions
 - typed models for action, observation, and state
 - 3 graded tasks: `easy`, `medium`, `hard`
-- meaningful dense rewards with safety penalties
-- reproducible baseline `inference.py`
+- dense rewards with safety penalties and partial-progress signal
+- reproducible root-level `inference.py`
 - Dockerized server for local and Hugging Face deployment
 
 ## What The Environment Simulates
 
 At each step, the agent can:
 
-- request one lab from a small clinically meaningful set
-- request one treatment plan from a small sepsis-management action set
+- request one lab from a clinically meaningful set
+- request one treatment plan from a sepsis-management action set
 - optionally mark the current state as suspected sepsis
 
 The environment advances along a logged patient trajectory and rewards the agent for:
@@ -39,24 +39,21 @@ The environment advances along a logged patient trajectory and rewards the agent
 - selecting treatment plans that fit the hidden severity pattern in the logged stay
 - avoiding obviously unsafe escalation or under-treatment
 
-This is an offline environment built from a compact processed bundle derived from the local MIMIC-III demo cohort. It is inspired by the WD3QNE sepsis-treatment paper, but the environment itself is purpose-built for OpenEnv evaluation rather than paper reproduction.
+This is an offline environment built from a compact processed bundle derived from the MIMIC-III demo cohort. It is inspired by the WD3QNE sepsis-treatment paper, but the environment is purpose-built for OpenEnv evaluation rather than paper reproduction.
 
 ## Tasks
 
-Task definitions live in [tasks.py](/C:/Users/Baibhav%20Sureka/Videos/ID3QNE-algorithm/tasks.py).
+Task definitions live in `tasks.py`.
 
-- `easy`
-  Early sepsis workup from partial bedside data with an emphasis on timely lab selection.
-- `medium`
-  Diagnosis plus early treatment initiation after iterative lab requests.
-- `hard`
-  Full sepsis management across longer unstable trajectories with stabilization and outcome pressure.
+- `easy`: early sepsis workup from partial bedside data with an emphasis on timely lab selection
+- `medium`: diagnosis plus early treatment initiation after iterative lab requests
+- `hard`: full sepsis management across longer unstable trajectories with stabilization and outcome pressure
 
-Each task has a deterministic grader in [graders.py](/C:/Users/Baibhav%20Sureka/Videos/ID3QNE-algorithm/graders.py) that returns a score in `[0.0, 1.0]`.
+Each task has a deterministic grader in `graders.py` that returns a score in `[0.0, 1.0]`.
 
 ## Action Space
 
-Defined in [models.py](/C:/Users/Baibhav%20Sureka/Videos/ID3QNE-algorithm/models.py#L10).
+Defined in `models.py`.
 
 - `action_type`: `request_lab`, `request_treatment`, or `monitor`
 - `suspect_sepsis`: boolean detection signal
@@ -65,7 +62,7 @@ Defined in [models.py](/C:/Users/Baibhav%20Sureka/Videos/ID3QNE-algorithm/models
 
 ## Observation Space
 
-Defined in [models.py](/C:/Users/Baibhav%20Sureka/Videos/ID3QNE-algorithm/models.py#L20).
+Defined in `models.py`.
 
 Each observation contains:
 
@@ -91,46 +88,53 @@ Per step:
 - reward for requesting priority labs that fit the current presentation
 - reward for selecting treatment plans that match the hidden severity pattern
 - progress bonus when the next logged state becomes less severe
-- penalties for duplicate low-value labs, unsafe escalation, or obvious under-treatment
+- novelty bonus for new state-action exploration
+- penalties for duplicate labs, repeated low-value actions, unsafe escalation, or obvious under-treatment
 
 At the end of the episode:
 
 - bonus for survival trajectories
 - penalty for death trajectories
 
-This gives the agent useful partial-progress feedback throughout the trajectory.
-
 ## Core Files
 
-- [openenv.yaml](/C:/Users/Baibhav%20Sureka/Videos/ID3QNE-algorithm/openenv.yaml): OpenEnv metadata
-- [models.py](/C:/Users/Baibhav%20Sureka/Videos/ID3QNE-algorithm/models.py): typed action / observation / state models
-- [tasks.py](/C:/Users/Baibhav%20Sureka/Videos/ID3QNE-algorithm/tasks.py): task catalog
-- [graders.py](/C:/Users/Baibhav%20Sureka/Videos/ID3QNE-algorithm/graders.py): deterministic graders
-- [client.py](/C:/Users/Baibhav%20Sureka/Videos/ID3QNE-algorithm/client.py): client wrapper
-- [server/app.py](/C:/Users/Baibhav%20Sureka/Videos/ID3QNE-algorithm/server/app.py): FastAPI app
-- [server/sepsis_environment.py](/C:/Users/Baibhav%20Sureka/Videos/ID3QNE-algorithm/server/sepsis_environment.py): environment implementation
-- [inference.py](/C:/Users/Baibhav%20Sureka/Videos/ID3QNE-algorithm/inference.py): baseline runner
-- [validate_local.py](/C:/Users/Baibhav%20Sureka/Videos/ID3QNE-algorithm/validate_local.py): local smoke checks
-- [prepare_submission.py](/C:/Users/Baibhav%20Sureka/Videos/ID3QNE-algorithm/prepare_submission.py): creates a clean submission bundle
+- `openenv.yaml`: OpenEnv metadata
+- `models.py`: typed action / observation / state models
+- `tasks.py`: task catalog
+- `graders.py`: deterministic graders
+- `client.py`: client wrapper
+- `server/app.py`: FastAPI app and server entrypoint
+- `server/sepsis_environment.py`: environment implementation
+- `inference.py`: baseline runner
+- `validate_local.py`: local smoke checks
+- `prepare_submission.py`: creates a clean submission bundle
 
 ## Setup
 
-Install dependencies:
+Create a virtual environment and install dependencies:
 
 ```bash
-pip install -r requirements.txt
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install --upgrade pip
+.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-Run the local validation:
+Run local validation:
 
 ```bash
-python validate_local.py
+.venv\Scripts\python.exe validate_local.py
 ```
 
-Start the environment server:
+Run the official OpenEnv validator:
 
 ```bash
-uvicorn server.app:app --host 0.0.0.0 --port 8000
+.venv\Scripts\openenv.exe validate
+```
+
+Start the environment server locally:
+
+```bash
+.venv\Scripts\python.exe -m uvicorn server.app:app --host 0.0.0.0 --port 8000
 ```
 
 Quick checks:
@@ -142,26 +146,27 @@ curl http://127.0.0.1:8000/metadata
 
 ## Baseline Inference
 
-The required root-level baseline script is [inference.py](/C:/Users/Baibhav%20Sureka/Videos/ID3QNE-algorithm/inference.py).
+The required root-level baseline script is `inference.py`.
 
 Run locally:
 
 ```bash
-python inference.py
+.venv\Scripts\python.exe inference.py
 ```
 
-It writes reproducible scores to:
+The script:
 
-- [outputs/baseline_scores.json](/C:/Users/Baibhav%20Sureka/Videos/ID3QNE-algorithm/outputs/baseline_scores.json)
-
-If `API_BASE_URL`, `MODEL_NAME`, and `HF_TOKEN` are present, the script uses the OpenAI client with those variables. If not, it falls back to a deterministic staged baseline that requests key labs first and then selects a treatment plan, so the benchmark still runs reproducibly.
+- writes reproducible scores to `outputs/baseline_scores.json`
+- emits OpenEnv-style `[START]`, `[STEP]`, and `[END]` lines to stdout
+- uses the OpenAI client if `API_BASE_URL`, `MODEL_NAME`, and `HF_TOKEN` are set
+- otherwise falls back to a deterministic staged baseline policy
 
 Current deterministic baseline scores from the local run:
 
-- `easy`: `0.93`
-- `medium`: `0.9062`
-- `hard`: `0.8886`
-- mean score: `0.9083`
+- `easy`: `1.0`
+- `medium`: `1.0`
+- `hard`: `0.96`
+- mean score: `0.9867`
 
 ## Docker
 
@@ -177,34 +182,37 @@ Run:
 docker run -p 8000:8000 sepsis-openenv
 ```
 
-The container should expose a working `/health` endpoint and respond to `/reset`.
+The container exposes a working `/health` endpoint and responds to `/reset`.
 
 ## Submission Bundle
 
-To prepare a clean hackathon-ready bundle without the larger local research folders, run:
+To prepare a clean hackathon-ready bundle:
 
 ```bash
-python prepare_submission.py
+.venv\Scripts\python.exe prepare_submission.py
 ```
 
-This creates:
-
-- `submission_bundle/`
-
-with only the files needed for the environment runtime and submission packaging.
+This creates `submission_bundle/` with only the files needed for the environment runtime and submission packaging.
 
 ## Runtime Assets
 
-The submission runtime uses the small preprocessed assets in:
+The runtime uses the preprocessed assets in:
 
 - `env_data/processed_demo_dataset.pkl`
 - `env_data/selected_features.json`
 
 This keeps the environment lightweight enough for the hackathon resource limits.
 
-## Known Caveat
+## Validation Status
 
-The repo was structured for OpenEnv submission, but the official `openenv validate` CLI was not available in this session. Local validation, baseline runs, HTTP checks, and Docker build/run all passed.
+The following checks have been run locally:
+
+- `python validate_local.py`: passed
+- `python inference.py`: passed
+- `openenv validate`: passed
+- `docker build -t sepsis-openenv .`: passed
+- `docker run -p 8000:8000 sepsis-openenv`: passed
+- `/health` and `/metadata`: passed
 
 ## Inspiration
 

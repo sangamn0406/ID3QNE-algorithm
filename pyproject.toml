@@ -19,6 +19,9 @@ dependencies = [
   "openenv-core>=0.1.0",
 ]
 
+[project.scripts]
+server = "server.app:main"
+
 [tool.setuptools]
 py-modules = [
   "client",

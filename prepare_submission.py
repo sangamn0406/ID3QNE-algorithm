@@ -14,6 +14,7 @@ FILES_TO_COPY = [
     ".gitignore",
     "requirements.txt",
     "pyproject.toml",
+    "uv.lock",
     "openenv.yaml",
     "client.py",
     "models.py",

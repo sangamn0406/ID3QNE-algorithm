@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import os
+
 from fastapi import FastAPI
+import uvicorn
 
 from models import SepsisAction, SepsisObservation, SepsisState
 from openenv_compat import OPENENV_AVAILABLE, create_app
@@ -61,3 +64,12 @@ else:
     @app.get("/state")
     def state() -> dict:
         return environment.state.model_dump()
+
+
+def main() -> None:
+    port = int(os.getenv("PORT", "8000"))
+    uvicorn.run("server.app:app", host="0.0.0.0", port=port)
+
+
+if __name__ == "__main__":
+    main()

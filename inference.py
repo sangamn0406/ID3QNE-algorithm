@@ -15,6 +15,15 @@ OUTPUT_DIR = Path("outputs")
 MAX_STEPS_PER_TASK = {"easy": 8, "medium": 12, "hard": 16}
 EPSILON = 0.1
 RNG = random.Random(7)
+ENV_NAME = "sepsis-openenv"
+
+
+def format_action(action: SepsisAction) -> str:
+    if action.action_type == "request_lab":
+        return f"request_lab({action.lab_type}, suspect_sepsis={str(action.suspect_sepsis).lower()})"
+    if action.action_type == "request_treatment":
+        return f"request_treatment({action.treatment_type}, suspect_sepsis={str(action.suspect_sepsis).lower()})"
+    return f"monitor(suspect_sepsis={str(action.suspect_sepsis).lower()})"
 
 
 def curriculum_action(observation: SepsisObservation) -> SepsisAction | None:
@@ -198,27 +207,36 @@ def run_task(task_id: str, client: OpenAI | None, model_name: str | None) -> dic
     result = env.reset()
     observation = result.observation
     final_info = result.info
+    reward_trace: list[float] = []
+    success = False
+    step_count = 0
 
-    for _ in range(MAX_STEPS_PER_TASK[task_id]):
-        action = model_action(client, model_name, observation)
-        print(
-            {
-                "task": task_id,
-                "step": observation.step_index,
-                "severity": round(observation.severity_proxy, 4),
-                "action": action.action_type,
-                "lab": action.lab_type,
-                "treatment": action.treatment_type,
-            }
-        )
-        result = env.step(action)
-        observation = result.observation
-        final_info = result.info
-        if result.done:
-            break
+    print(f"[START] task={task_id} env={ENV_NAME} model={model_name or 'heuristic-baseline'}")
 
-    state = env.state()
-    env.close()
+    try:
+        for step_number in range(1, MAX_STEPS_PER_TASK[task_id] + 1):
+            action = model_action(client, model_name, observation)
+            result = env.step(action)
+            observation = result.observation
+            final_info = result.info
+            reward = float(result.reward or 0.0)
+            reward_trace.append(reward)
+            step_count = step_number
+            print(
+                f"[STEP] step={step_number} action={format_action(action)} "
+                f"reward={reward:.2f} done={str(result.done).lower()} error=null"
+            )
+            if result.done:
+                success = True
+                break
+    except Exception:
+        success = False
+    finally:
+        state = env.state()
+        env.close()
+        rewards_repr = ",".join(f"{reward:.2f}" for reward in reward_trace)
+        print(f"[END] success={str(success).lower()} steps={step_count} rewards={rewards_repr}")
+
     metrics = final_info.get("metrics", {})
     return {
         "task_id": task_id,
@@ -255,7 +273,6 @@ def main() -> None:
     }
     output_path = OUTPUT_DIR / "baseline_scores.json"
     output_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
-    print(json.dumps(summary, indent=2))
 
 
 if __name__ == "__main__":

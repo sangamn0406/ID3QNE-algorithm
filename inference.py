@@ -784,26 +784,26 @@ def main() -> None:
     try:
         args = parse_args()
         OUTPUT_DIR.mkdir(exist_ok=True)
-        # Use validator-provided API_BASE_URL and API_KEY (LiteLLM proxy)
-        api_base_url = os.getenv("API_BASE_URL")
-        api_key = os.getenv("API_KEY")
-        model_name = os.getenv("MODEL_NAME")
         
-        # Fallback to defaults only if not provided by validator
-        if not api_base_url:
-            api_base_url = DEFAULT_API_BASE_URL
-        if not model_name:
-            model_name = DEFAULT_MODEL_NAME
+        # Use validator-provided API credentials (LiteLLM proxy)
+        api_base_url = os.environ.get("API_BASE_URL")
+        api_key = os.environ.get("API_KEY")
+        model_name = os.environ.get("MODEL_NAME", "gpt-4o-mini")
 
         llm_client = None
-        if api_base_url and model_name and api_key:
-            llm_client = OpenAI(base_url=api_base_url, api_key=api_key)
+        if api_base_url and api_key:
+            llm_client = OpenAI(
+                base_url=api_base_url,
+                api_key=api_key,
+            )
+        else:
+            print("[WARNING] API_BASE_URL or API_KEY not found. Falling back to heuristic.")
 
         if args.episodes < 1:
             raise SystemExit("--episodes must be at least 1.")
 
         if args.model == "llm" and llm_client is None:
-            raise SystemExit("LLM mode requires OPENAI_API_KEY or HF_TOKEN plus API_BASE_URL and MODEL_NAME.")
+            raise SystemExit("LLM mode requires API_BASE_URL and API_KEY environment variables.")
 
         active_policy = args.model
         if args.model == "auto":

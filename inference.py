@@ -78,31 +78,46 @@ def model_action(client: OpenAI | None, model_name: str | None, observation: Sep
 
 def run_task(task_id: str, client: OpenAI | None, model_name: str | None) -> dict:
     env = SepsisTreatmentEnv(base_url=os.getenv("ENV_BASE_URL"), task_id=task_id)
-    result = env.reset()
-    observation = result.observation
-    final_info = result.info
-
-    for _ in range(MAX_STEPS_PER_TASK[task_id]):
-        action = model_action(client, model_name, observation)
-        result = env.step(action)
+    final_info: dict = {}
+    try:
+        result = env.reset()
         observation = result.observation
-        final_info = result.info
-        if result.done:
-            break
+        final_info = getattr(result, "info", {}) or {}
 
-    state = env.state()
-    env.close()
-    metrics = final_info.get("metrics", {})
-    return {
-        "task_id": task_id,
-        "episode_id": state.episode_id,
-        "score": metrics.get("score", 0.0),
-        "avg_reward": metrics.get("avg_reward", 0.0),
-        "agreement_rate": metrics.get("agreement_rate", 0.0),
-        "safety_violation_rate": metrics.get("safety_violation_rate", 0.0),
-        "terminal_success": metrics.get("terminal_success", 0.0),
-        "steps": metrics.get("steps", state.step_count),
-    }
+        for _ in range(MAX_STEPS_PER_TASK[task_id]):
+            action = model_action(client, model_name, observation)
+            result = env.step(action)
+            observation = result.observation
+            final_info = getattr(result, "info", {}) or {}
+            if result.done:
+                break
+
+        state = env.state()
+        metrics = final_info.get("metrics", {})
+        return {
+            "task_id": task_id,
+            "episode_id": state.episode_id,
+            "score": metrics.get("score", 0.0),
+            "avg_reward": metrics.get("avg_reward", 0.0),
+            "agreement_rate": metrics.get("agreement_rate", 0.0),
+            "safety_violation_rate": metrics.get("safety_violation_rate", 0.0),
+            "terminal_success": metrics.get("terminal_success", 0.0),
+            "steps": metrics.get("steps", state.step_count),
+        }
+    except Exception as exc:
+        return {
+            "task_id": task_id,
+            "episode_id": "failed",
+            "score": 0.0,
+            "avg_reward": 0.0,
+            "agreement_rate": 0.0,
+            "safety_violation_rate": 1.0,
+            "terminal_success": 0.0,
+            "steps": 0,
+            "error": str(exc),
+        }
+    finally:
+        env.close()
 
 
 def main() -> None:

@@ -9,16 +9,28 @@ from openenv_compat import EnvClient, StepResult
 from server.sepsis_environment import SepsisTreatmentEnvironment
 
 
+def _build_step_result(
+    observation: SepsisObservation,
+    reward: float | None = None,
+    done: bool = False,
+    info: dict[str, Any] | None = None,
+) -> StepResult[SepsisObservation]:
+    result = StepResult(observation=observation, reward=reward, done=done)
+    setattr(result, "info", info or {})
+    return result
+
+
 class SepsisTreatmentEnv(EnvClient):
     def __init__(self, base_url: str | None = None, task_id: str = "easy"):
-        super().__init__(base_url=base_url)
+        default_base_url = base_url or "http://localhost:8000"
+        super().__init__(base_url=default_base_url)
         self.task_id = task_id
         self._local_env = None if base_url else SepsisTreatmentEnvironment(task_id=task_id)
 
     def reset(self) -> StepResult[SepsisObservation]:
         if self._local_env is not None:
             observation = self._local_env.reset(task_id=self.task_id)
-            return StepResult(
+            return _build_step_result(
                 observation=observation,
                 reward=0.0,
                 done=False,
@@ -28,7 +40,7 @@ class SepsisTreatmentEnv(EnvClient):
         response = requests.post(f"{self.base_url.rstrip('/')}/reset", json={"task_id": self.task_id}, timeout=30)
         response.raise_for_status()
         payload = response.json()
-        return StepResult(
+        return _build_step_result(
             observation=SepsisObservation(**payload["observation"]),
             reward=payload.get("reward"),
             done=payload.get("done", False),
@@ -38,7 +50,7 @@ class SepsisTreatmentEnv(EnvClient):
     def step(self, action: SepsisAction) -> StepResult[SepsisObservation]:
         if self._local_env is not None:
             observation = self._local_env.step(action)
-            return StepResult(
+            return _build_step_result(
                 observation=observation,
                 reward=observation.reward,
                 done=observation.done,
@@ -48,7 +60,7 @@ class SepsisTreatmentEnv(EnvClient):
         response = requests.post(f"{self.base_url.rstrip('/')}/step", json=action.model_dump(), timeout=30)
         response.raise_for_status()
         payload = response.json()
-        return StepResult(
+        return _build_step_result(
             observation=SepsisObservation(**payload["observation"]),
             reward=payload.get("reward"),
             done=payload.get("done", False),
@@ -68,6 +80,21 @@ class SepsisTreatmentEnv(EnvClient):
         response = requests.get(f"{self.base_url.rstrip('/')}/metadata", timeout=30)
         response.raise_for_status()
         return response.json()
+
+
+    def _step_payload(self, action: SepsisAction) -> dict[str, Any]:
+        return action.model_dump()
+
+    def _parse_result(self, payload: dict[str, Any]) -> StepResult[SepsisObservation]:
+        return _build_step_result(
+            observation=SepsisObservation(**payload["observation"]),
+            reward=payload.get("reward"),
+            done=payload.get("done", False),
+            info=payload.get("info", {}),
+        )
+
+    def _parse_state(self, payload: dict[str, Any]) -> SepsisState:
+        return SepsisState(**payload)
 
     def close(self) -> None:
         self._local_env = None

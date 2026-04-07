@@ -24,6 +24,7 @@ ENV_NAME = "sepsi-gym"
 LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
 DEFAULT_API_BASE_URL = "https://router.huggingface.co/v1"
 DEFAULT_MODEL_NAME = "Qwen/Qwen2.5-72B-Instruct"
+SCORE_EPS = 1e-3
 TASK_IDS = ["easy", "medium", "hard"]
 LAB_OPTIONS = ["lactate", "wbc", "creatinine", "bicarbonate", "platelets", "bilirubin"]
 TREATMENT_OPTIONS = ["monitor", "fluids", "vasopressors", "combination"]
@@ -586,6 +587,17 @@ def compute_dense_reward_metrics(
     }
 
 
+def normalize_task_score(value: Any, default: float = 0.5) -> float:
+    try:
+        score = float(value)
+    except Exception:
+        score = default
+    if not np.isfinite(score):
+        score = default
+    score = max(SCORE_EPS, min(1.0 - SCORE_EPS, score))
+    return round(score, 4)
+
+
 def run_task(
     task_id: str,
     policy_mode: str,
@@ -675,10 +687,11 @@ def run_task(
             max_steps=MAX_STEPS_PER_TASK[task_id],
             action_history=action_history,
         )
+        normalized_score = normalize_task_score(metrics.get("score", 0.5))
         return {
             "task_id": task_id,
             "episode_id": state.episode_id,
-            "score": metrics.get("score", 0.0),
+            "score": normalized_score,
             "avg_reward": metrics.get("avg_reward", 0.0),
             "detection": metrics.get("detection", 0.0),
             "lab_workup": metrics.get("lab_workup", 0.0),
@@ -703,7 +716,7 @@ def run_task(
         return {
             "task_id": task_id,
             "episode_id": getattr(state, 'episode_id', 'unknown'),
-            "score": 0.0,
+            "score": normalize_task_score(0.0),
             "avg_reward": 0.0,
             "detection": 0.0,
             "lab_workup": 0.0,

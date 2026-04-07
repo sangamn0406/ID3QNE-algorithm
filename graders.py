@@ -5,14 +5,21 @@ from typing import Any
 from tasks import TaskConfig
 
 
+SCORE_EPS = 1e-3
+
+
 def _clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
     return max(low, min(high, value))
+
+
+def _strict_score(value: float) -> float:
+    return _clamp(value, SCORE_EPS, 1.0 - SCORE_EPS)
 
 
 def grade_episode(task: TaskConfig, metrics: dict[str, Any]) -> float:
     weights = task.score_weights
     score = sum(weights.get(metric_name, 0.0) * _clamp(metrics.get(metric_name, 0.0)) for metric_name in weights)
-    return round(_clamp(score), 4)
+    return round(_strict_score(score), 4)
 
 
 def summarize_episode(total_reward: float, state_history: list[dict[str, Any]], terminal_outcome: str) -> dict[str, Any]:

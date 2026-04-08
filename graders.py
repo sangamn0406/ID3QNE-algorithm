@@ -54,13 +54,13 @@ def summarize_episode(total_reward: float, state_history: list[dict[str, Any]], 
     outcome = 1.0 - SCORE_EPS if terminal_outcome == "survived" else SCORE_EPS
     return {
         "steps": step_count,
-        "avg_reward": total_reward / step_count,
+        "avg_reward": _clamp(total_reward / step_count),
         "detection": round(_clamp(detection), 4),
         "lab_workup": round(_clamp(lab_workup), 4),
         "treatment": round(_clamp(treatment), 4),
         "timeliness": round(_clamp(timeliness), 4),
         "stability": round(_clamp(stability), 4),
         "safety": round(_clamp(safety), 4),
-        "safety_violation_rate": safety_violations / step_count,
+        "safety_violation_rate": _clamp(safety_violations / step_count),
         "outcome": outcome,
     }

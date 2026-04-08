@@ -8,7 +8,7 @@ from tasks import TaskConfig
 SCORE_EPS = 1e-3
 
 
-def _clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
+def _clamp(value: float, low: float = SCORE_EPS, high: float = 1.0 - SCORE_EPS) -> float:
     return max(low, min(high, value))
 
 
@@ -51,7 +51,7 @@ def summarize_episode(total_reward: float, state_history: list[dict[str, Any]], 
     timeliness = _clamp(1.0 - (first_meaningful_step / step_count))
     stability = sum(item.get("stability_score", 0.0) for item in state_history) / step_count
     safety = _clamp(1.0 - (safety_violations / step_count))
-    outcome = 1.0 if terminal_outcome == "survived" else 0.0
+    outcome = 1.0 - SCORE_EPS if terminal_outcome == "survived" else SCORE_EPS
     return {
         "steps": step_count,
         "avg_reward": total_reward / step_count,

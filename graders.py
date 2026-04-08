@@ -49,7 +49,9 @@ def summarize_episode(total_reward: float, state_history: list[dict[str, Any]], 
         step_count,
     )
     timeliness = _clamp(1.0 - (first_meaningful_step / step_count))
-    stability = sum(item.get("stability_score", 0.0) for item in state_history) / step_count
+    stability = _clamp(
+    sum(item.get("stability_score", 0.0) for item in state_history) / step_count
+    )
     safety = _clamp(1.0 - (safety_violations / step_count))
     outcome = 1.0 - SCORE_EPS if terminal_outcome == "survived" else SCORE_EPS
     return {
